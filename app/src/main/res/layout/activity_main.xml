@@ -132,7 +132,7 @@
                     android:layout_height="60dp"
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
-                    android:text="Select Frame"
+                    android:text="@string/btn_select_frame"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:enabled="false"

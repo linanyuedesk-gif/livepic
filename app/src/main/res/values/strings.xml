@@ -2,7 +2,7 @@
     <string name="app_name">VToLive</string>
     <string name="config_title">Convert Video to Live Photo</string>
     <string name="btn_select_video">Select Video</string>
-    <string name="btn_convert">Convert to Live Photo</string>
+    <string name="btn_convert">Create Live Photo</string>
     <string name="hint_select_video">Choose a video file to convert</string>
     <string name="msg_conversion_error">Conversion failed</string>
     <string name="permission_rationale">Video access permission is required.</string>
@@ -10,8 +10,19 @@
     <string name="converted_empty">No converted videos</string>
     <string name="btn_choose_duration">Choose Duration</string>
     <string name="msg_processing">Processing...</string>
-    <string name="msg_conversion_complete">Conversion complete!</string>
+    <string name="msg_conversion_complete">Live Photo created successfully!</string>
     <string name="msg_no_video_selected">No video selected</string>
     <string name="instruction">Tap to select video</string>
-    <string name="btn_select_frame">Select Frame</string>
+    <string name="btn_select_frame">Select Interval</string>
+    
+    <!-- New strings for enhanced functionality -->
+    <string name="select_interval_title">Select Live Photo Interval</string>
+    <string name="interval_instructions">Drag handles to select time interval (1.5-3 seconds recommended)</string>
+    <string name="confirm_selection">Confirm</string>
+    <string name="cancel_selection">Cancel</string>
+    <string name="loading_video_info">Loading video information...</string>
+    <string name="invalid_interval">Please select an interval between 1.5 and 3 seconds</string>
+    <string name="export_progress">Exporting Live Photo...</string>
+    <string name="export_complete">Live Photo saved to gallery!</string>
+    <string name="export_failed">Export failed</string>
 </resources>

@@ -2,25 +2,16 @@ package com.cl.vtolive;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.ContentResolver;
-import android.content.ContentValues;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.media.MediaMetadataRetriever;
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.MediaStore;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -30,7 +21,6 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -38,8 +28,18 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+
+import com.cl.vtolive.modules.core.LivePhotoEncoder;
+import com.cl.vtolive.modules.export.ExportManager;
+import com.cl.vtolive.modules.ui.IntervalSelectorActivity;
+import com.cl.vtolive.modules.video.VideoProcessor;
+import com.cl.vtolive.utils.PermissionHelper;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.UUID;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_CONVERTED_PHOTO_PATH = "converted_photo_path";
     
     private static final int VIDEO_PICKER_REQUEST_CODE = 1001;
-    private static final int PERMISSION_REQUEST_CODE = 1002;
+    private static final int INTERVAL_SELECTOR_REQUEST_CODE = 1002;
     
     private ImageView ivPreview;
     private TextView tvInstruction;
@@ -70,8 +70,14 @@ public class MainActivity extends AppCompatActivity {
     private Uri selectedVideoUri;
     private String convertedPhotoPath;
     private long videoDuration = 0;
-    private long selectedFrameTime = 0;
+    private long selectedStartTime = 2000;
+    private long selectedEndTime = 5000;
     private Handler handler = new Handler(Looper.getMainLooper());
+    
+    // Module instances
+    private VideoProcessor videoProcessor;
+    private LivePhotoEncoder livePhotoEncoder;
+    private ExportManager exportManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -95,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         initViews();
+        initModules();
         loadSavedState();
         checkPermissions();
         setupClickListeners();
@@ -119,6 +126,12 @@ public class MainActivity extends AppCompatActivity {
         rootLayout = findViewById(R.id.rootLayout);
     }
     
+    private void initModules() {
+        videoProcessor = new VideoProcessor(this);
+        livePhotoEncoder = new LivePhotoEncoder(this);
+        exportManager = new ExportManager(this);
+    }
+    
     private void loadSavedState() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String uriStr = prefs.getString(KEY_SELECTED_VIDEO_URI, null);
@@ -130,43 +143,22 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ - Check new media permissions
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                    new String[]{
-                        Manifest.permission.READ_MEDIA_VIDEO,
-                        Manifest.permission.READ_MEDIA_IMAGES
-                    },
-                    PERMISSION_REQUEST_CODE);
-            }
-        } else {
-            // Older Android versions
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                    new String[]{
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    },
-                    PERMISSION_REQUEST_CODE);
-            }
+        if (!PermissionHelper.hasAllPermissions(this)) {
+            PermissionHelper.requestPermissions(this);
         }
     }
     
     private void setupClickListeners() {
         btnSelectVideo.setOnClickListener(v -> selectVideo());
         btnConvert.setOnClickListener(v -> convertToLivePhoto());
-        btnFrameSelector.setOnClickListener(v -> showFrameSelectionDialog());
+        btnFrameSelector.setOnClickListener(v -> selectInterval());
         
         seekBarFrame.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser && videoDuration > 0) {
-                    selectedFrameTime = (long) (progress * videoDuration / 100.0);
+                    selectedStartTime = (long) (progress * videoDuration / 100.0);
                     updateFramePositionText();
-                    updatePreviewFrame();
                 }
             }
             
@@ -196,122 +188,86 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        // Show progress
-        progressBar.setVisibility(View.VISIBLE);
-        btnConvert.setEnabled(false);
-        tvStatus.setText(R.string.msg_processing);
+        // Validate interval
+        if (!livePhotoEncoder.validateParameters(selectedStartTime, selectedEndTime, videoDuration)) {
+            Toast.makeText(this, "Invalid time interval", Toast.LENGTH_SHORT).show();
+            return;
+        }
         
-        // Perform conversion in background thread
-        new Thread(() -> {
-            try {
-                boolean success = performConversion();
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnConvert.setEnabled(true);
-                    
-                    if (success) {
-                        tvStatus.setText(R.string.msg_conversion_complete);
-                        Toast.makeText(MainActivity.this, R.string.msg_conversion_complete, Toast.LENGTH_LONG).show();
-                    } else {
-                        tvStatus.setText(R.string.msg_conversion_error);
-                        Toast.makeText(MainActivity.this, R.string.msg_conversion_error, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Conversion failed", e);
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnConvert.setEnabled(true);
-                    tvStatus.setText(R.string.msg_conversion_error);
-                    Toast.makeText(MainActivity.this, R.string.msg_conversion_error, Toast.LENGTH_SHORT).show();
-                });
-            }
-        }).start();
-    }
-    
-    private boolean performConversion() {
-        try {
-            // Extract frame from video at selected time
-            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-            retriever.setDataSource(this, selectedVideoUri);
-            
-            // Get frame at selected time
-            Bitmap bitmap = retriever.getFrameAtTime(selectedFrameTime * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-            retriever.release();
-            
-            if (bitmap == null) {
-                return false;
-            }
-            
-            // Save image to Pictures directory
-            String fileName = "LivePhoto_" + UUID.randomUUID().toString() + ".jpg";
-            File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-            File outputFile = new File(picturesDir, fileName);
-            
-            FileOutputStream fos = new FileOutputStream(outputFile);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-            fos.close();
-            
-            // Save the path
-            convertedPhotoPath = outputFile.getAbsolutePath();
-            saveState();
-            
-            // Add to media store so it appears in gallery
-            ContentValues values = new ContentValues();
-            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-            values.put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000);
-            values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
-            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
-            values.put(MediaStore.Images.Media.IS_PENDING, 1);
-            
-            ContentResolver resolver = getContentResolver();
-            Uri collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-            Uri item = resolver.insert(collection, values);
-            
-            if (item != null) {
-                try (OutputStream out = resolver.openOutputStream(item)) {
-                    if (out != null) {
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out);
-                    }
+        // Show progress dialog
+        ProgressDialog progressDialog = new ProgressDialog(this);
+        progressDialog.setMessage("Creating Live Photo...");
+        progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+        
+        // Perform export using ExportManager
+        exportManager.exportToGalleryAsync(selectedVideoUri, selectedStartTime, selectedEndTime, 
+            new ExportManager.ExportCallback() {
+                @Override
+                public void onProgress(int percentage, String message) {
+                    runOnUiThread(() -> {
+                        progressDialog.setProgress(percentage);
+                        progressDialog.setMessage(message);
+                    });
                 }
                 
-                // Mark as completed
-                values.clear();
-                values.put(MediaStore.Images.Media.IS_PENDING, 0);
-                resolver.update(item, values, null, null);
-            }
-            
-            bitmap.recycle();
-            return true;
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Error during conversion", e);
-            return false;
+                @Override
+                public void onSuccess(String filePath, Uri mediaStoreUri) {
+                    runOnUiThread(() -> {
+                        progressDialog.dismiss();
+                        tvStatus.setText("Live Photo created successfully!");
+                        Toast.makeText(MainActivity.this, "Live Photo saved to gallery", Toast.LENGTH_LONG).show();
+                        
+                        // Update UI
+                        btnConvert.setEnabled(true);
+                        convertedPhotoPath = filePath;
+                        saveState();
+                    });
+                }
+                
+                @Override
+                public void onError(String error) {
+                    runOnUiThread(() -> {
+                        progressDialog.dismiss();
+                        tvStatus.setText("Error: " + error);
+                        Toast.makeText(MainActivity.this, "Export failed: " + error, Toast.LENGTH_LONG).show();
+                        btnConvert.setEnabled(true);
+                    });
+                }
+            });
+    }
+    
+    private void selectInterval() {
+        if (selectedVideoUri == null) {
+            Toast.makeText(this, "Please select a video first", Toast.LENGTH_SHORT).show();
+            return;
         }
+        
+        Intent intent = new Intent(this, IntervalSelectorActivity.class);
+        intent.putExtra(IntervalSelectorActivity.EXTRA_VIDEO_URI, selectedVideoUri);
+        intent.putExtra(IntervalSelectorActivity.EXTRA_START_TIME, selectedStartTime);
+        intent.putExtra(IntervalSelectorActivity.EXTRA_END_TIME, selectedEndTime);
+        startActivityForResult(intent, INTERVAL_SELECTOR_REQUEST_CODE);
     }
     
     private void displayVideoPreview() {
         if (selectedVideoUri != null) {
             try {
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                retriever.setDataSource(this, selectedVideoUri);
-                
-                // Get video duration
-                String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-                if (durationStr != null) {
-                    videoDuration = Long.parseLong(durationStr);
-                }
-                
-                // Set default frame time to middle of video
-                selectedFrameTime = videoDuration / 2;
-                
-                // Get thumbnail
-                Bitmap thumbnail = retriever.getFrameAtTime(selectedFrameTime * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-                if (thumbnail != null) {
-                    ivPreview.setImageBitmap(thumbnail);
-                    ivPreview.setVisibility(View.VISIBLE);
-                    tvInstruction.setText(getString(R.string.hint_select_video));
+                VideoProcessor.VideoInfo videoInfo = videoProcessor.getVideoInfo(selectedVideoUri);
+                if (videoInfo != null) {
+                    videoDuration = videoInfo.duration;
+                    
+                    // Get thumbnail from middle of video
+                    long middleTime = videoDuration / 2;
+                    Bitmap thumbnail = videoProcessor.extractFramesAtTimestamps(selectedVideoUri, 
+                        java.util.Arrays.asList(middleTime)).get(0).bitmap;
+                    
+                    if (thumbnail != null) {
+                        ivPreview.setImageBitmap(thumbnail);
+                        ivPreview.setVisibility(View.VISIBLE);
+                        tvInstruction.setText(getString(R.string.hint_select_video));
+                    }
                 }
                 
                 // Update frame position text
@@ -320,10 +276,9 @@ public class MainActivity extends AppCompatActivity {
                 // Enable frame selection controls
                 btnFrameSelector.setEnabled(true);
                 seekBarFrame.setVisibility(View.VISIBLE);
-                int progress = (int) (selectedFrameTime * 100 / videoDuration);
+                int progress = (int) (selectedStartTime * 100 / videoDuration);
                 seekBarFrame.setProgress(progress);
                 
-                retriever.release();
             } catch (Exception e) {
                 Log.e(TAG, "Error loading video preview", e);
             }
@@ -355,11 +310,18 @@ public class MainActivity extends AppCompatActivity {
                 
                 // Reset frame selection
                 videoDuration = 0;
-                selectedFrameTime = 0;
+                selectedStartTime = 2000;
+                selectedEndTime = 5000;
                 seekBarFrame.setVisibility(View.GONE);
                 btnFrameSelector.setEnabled(false);
                 tvFramePosition.setText("00:00 / 00:00");
             }
+        } else if (requestCode == INTERVAL_SELECTOR_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
+            selectedStartTime = data.getLongExtra(IntervalSelectorActivity.RESULT_START_TIME, 2000);
+            selectedEndTime = data.getLongExtra(IntervalSelectorActivity.RESULT_END_TIME, 5000);
+            updateFramePositionText();
+            Toast.makeText(this, "Interval selected: " + formatTime(selectedStartTime) + " - " + formatTime(selectedEndTime), 
+                Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -367,7 +329,7 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
-        if (requestCode == PERMISSION_REQUEST_CODE) {
+        if (requestCode == PermissionHelper.PERMISSION_REQUEST_CODE) {
             boolean allGranted = true;
             for (int result : grantResults) {
                 if (result != PackageManager.PERMISSION_GRANTED) {
@@ -423,77 +385,10 @@ public class MainActivity extends AppCompatActivity {
         hideSystemUI();
     }
     
-    private void showFrameSelectionDialog() {
-        if (selectedVideoUri == null || videoDuration == 0) {
-            Toast.makeText(this, "Please select a video first", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Select Frame Position");
-        
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 30, 50, 30);
-        
-        // Current position text
-        TextView currentPositionText = new TextView(this);
-        currentPositionText.setText("Selected frame: " + formatTime(selectedFrameTime));
-        currentPositionText.setTextSize(16);
-        currentPositionText.setPadding(0, 0, 0, 20);
-        layout.addView(currentPositionText);
-        
-        // SeekBar for frame selection
-        SeekBar dialogSeekBar = new SeekBar(this);
-        dialogSeekBar.setMax(100);
-        int progress = (int) (selectedFrameTime * 100 / videoDuration);
-        dialogSeekBar.setProgress(progress);
-        dialogSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) {
-                    selectedFrameTime = (long) (progress * videoDuration / 100.0);
-                    currentPositionText.setText("Selected frame: " + formatTime(selectedFrameTime));
-                }
-            }
-            
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-            
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                updatePreviewFrame();
-                updateFramePositionText();
-            }
-        });
-        layout.addView(dialogSeekBar);
-        
-        builder.setView(layout);
-        builder.setPositiveButton("OK", null);
-        builder.show();
-    }
-    
-    private void updatePreviewFrame() {
-        if (selectedVideoUri != null && videoDuration > 0) {
-            try {
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                retriever.setDataSource(this, selectedVideoUri);
-                
-                Bitmap frame = retriever.getFrameAtTime(selectedFrameTime * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-                if (frame != null) {
-                    ivPreview.setImageBitmap(frame);
-                }
-                
-                retriever.release();
-            } catch (Exception e) {
-                Log.e(TAG, "Error updating preview frame", e);
-            }
-        }
-    }
-    
     private void updateFramePositionText() {
         if (tvFramePosition != null && videoDuration > 0) {
-            String text = formatTime(selectedFrameTime) + " / " + formatTime(videoDuration);
+            String text = formatTime(selectedStartTime) + " - " + formatTime(selectedEndTime) + 
+                         " (" + formatDuration(selectedEndTime - selectedStartTime) + ")";
             tvFramePosition.setText(text);
         }
     }
@@ -503,6 +398,17 @@ public class MainActivity extends AppCompatActivity {
         long minutes = seconds / 60;
         seconds = seconds % 60;
         return String.format("%02d:%02d", minutes, seconds);
+    }
+    
+    private String formatDuration(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        if (seconds < 60) {
+            return seconds + "s";
+        } else {
+            long minutes = seconds / 60;
+            seconds = seconds % 60;
+            return String.format("%d:%02d", minutes, seconds);
+        }
     }
     
     @Override

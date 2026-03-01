@@ -24,6 +24,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <activity
+            android:name=".modules.ui.IntervalSelectorActivity"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|layoutDirection" />
     </application>
 
 </manifest>
