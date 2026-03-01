@@ -28,7 +28,7 @@ import com.cl.vtolive.utils.PermissionHelper;
 public class HomeActivity extends AppCompatActivity {
     private static final String TAG = "HomeActivity";
     private static final int VIDEO_PICKER_REQUEST_CODE = 1001;
-    private static final int PERMISSION_REQUEST_CODE = 1002;
+    private static final int PERMISSION_REQUEST_CODE = 1001;
     
     private Button btnSelectVideo;
     private Button btnRecentConversions;
@@ -110,7 +110,7 @@ public class HomeActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
-        if (requestCode == PERMISSION_REQUEST_CODE) {
+        if (requestCode == PermissionHelper.PERMISSION_REQUEST_CODE) {
             boolean allGranted = true;
             for (int result : grantResults) {
                 if (result != PackageManager.PERMISSION_GRANTED) {

@@ -16,6 +16,8 @@ import com.cl.vtolive.R;
 import com.cl.vtolive.modules.core.LivePhotoEncoder;
 import com.cl.vtolive.modules.export.ExportManager;
 
+import java.io.File;
+
 /**
  * Fourth page: Export and save the Live Photo
  */

@@ -17,6 +17,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.cl.vtolive.R;
 import com.cl.vtolive.modules.video.VideoProcessor;
 
+import java.util.Arrays;
+
 /**
  * Third page: Preview selected interval with playback controls
  */
@@ -108,7 +110,7 @@ public class PreviewActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 VideoProcessor.FrameInfo frameInfo = videoProcessor
-                    .extractFramesAtTimestamps(videoUri, java.util.Arrays.asList(timestamp))
+                    .extractFramesAtTimestamps(videoUri, Arrays.asList(timestamp))
                     .get(0);
                 
                 runOnUiThread(() -> {
