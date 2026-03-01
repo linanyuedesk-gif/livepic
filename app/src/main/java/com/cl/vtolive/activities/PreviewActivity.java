@@ -11,6 +11,8 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.Intent;  // added for returning results
+import android.app.Activity;    // added for Activity.RESULT_OK
 
 import androidx.appcompat.app.AppCompatActivity;
 
