@@ -43,17 +43,7 @@
             android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|layoutDirection" />
         
-        <!-- Legacy MainActivity (can be removed later) -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:screenOrientation="fullSensor"
-            android:configChanges="orientation|screenSize|layoutDirection" />
         
-        <activity
-            android:name=".modules.ui.IntervalSelectorActivity"
-            android:screenOrientation="fullSensor"
-            android:configChanges="orientation|screenSize|layoutDirection" />
     </application>
 
 </manifest>

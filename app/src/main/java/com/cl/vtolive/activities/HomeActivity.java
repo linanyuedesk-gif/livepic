@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 
 import com.cl.vtolive.R;
 import com.cl.vtolive.modules.video.VideoProcessor;
+import com.cl.vtolive.modules.export.ExportManager;
 import com.cl.vtolive.utils.PermissionHelper;
 
 /**
@@ -68,8 +69,15 @@ public class HomeActivity extends AppCompatActivity {
     }
     
     private void showRecentConversions() {
-        // TODO: Implement recent conversions feature
-        Toast.makeText(this, "Recent conversions feature coming soon", Toast.LENGTH_SHORT).show();
+        ExportManager manager = new ExportManager(this);
+        ExportManager.ExportStats stats = manager.getExportStats();
+        String message = "Total exports: " + stats.totalExports +
+                         "\nTotal size: " + stats.getTotalSizeFormatted();
+        new AlertDialog.Builder(this)
+            .setTitle("Recent conversions")
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show();
     }
     
     private void checkPermissions() {

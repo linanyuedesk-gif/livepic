@@ -52,9 +52,12 @@ public class ExportManager {
     /**
      * Exports Live Photo to system gallery
      */
-    public ExportResult exportToGallery(Uri videoUri, long startTime, long endTime) {
+    /**
+     * Export with optional key frame timestamp (pass -1 to use midpoint)
+     */
+    public ExportResult exportToGallery(Uri videoUri, long startTime, long endTime, long keyFrameTime) {
         try {
-            Log.d(TAG, "Exporting Live Photo: " + startTime + "ms to " + endTime + "ms");
+            Log.d(TAG, "Exporting Live Photo: " + startTime + "ms to " + endTime + "ms (key=" + keyFrameTime + ")");
             
             // Validate parameters
             if (!validateExportParameters(videoUri, startTime, endTime)) {
@@ -66,7 +69,7 @@ public class ExportManager {
             String filePath = getOutputPath(filename);
             
             // Create Live Photo
-            boolean encoded = encoder.createLivePhoto(videoUri, startTime, endTime, filePath);
+            boolean encoded = encoder.createLivePhoto(videoUri, startTime, endTime, filePath, keyFrameTime);
             if (!encoded) {
                 return new ExportResult(false, null, "Failed to encode Live Photo");
             }
@@ -89,7 +92,7 @@ public class ExportManager {
     /**
      * Exports with progress callback
      */
-    public void exportToGalleryAsync(Uri videoUri, long startTime, long endTime, 
+    public void exportToGalleryAsync(Uri videoUri, long startTime, long endTime, long keyFrameTime,
                                    ExportCallback callback) {
         new Thread(() -> {
             try {
@@ -106,7 +109,7 @@ public class ExportManager {
                 String filePath = getOutputPath(filename);
                 
                 callback.onProgress(40, "Encoding Live Photo...");
-                boolean encoded = encoder.createLivePhoto(videoUri, startTime, endTime, filePath);
+                boolean encoded = encoder.createLivePhoto(videoUri, startTime, endTime, filePath, keyFrameTime);
                 if (!encoded) {
                     callback.onError("Failed to encode Live Photo");
                     return;

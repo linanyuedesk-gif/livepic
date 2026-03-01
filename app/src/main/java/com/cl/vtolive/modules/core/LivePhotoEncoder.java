@@ -6,6 +6,8 @@ import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.util.Log;
 
+import com.cl.vtolive.modules.core.MetadataGenerator;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -36,12 +38,29 @@ public class LivePhotoEncoder {
      * @param outputPath Output file path for the Live Photo
      * @return True if successful, false otherwise
      */
+    /**
+     * Convenience wrapper using middle frame as key photo
+     */
     public boolean createLivePhoto(Uri videoUri, long startTime, long endTime, String outputPath) {
+        return createLivePhoto(videoUri, startTime, endTime, outputPath, -1);
+    }
+
+    /**
+     * Creates a Live Photo from video interval
+     * @param videoUri Source video URI
+     * @param startTime Start time in milliseconds
+     * @param endTime End time in milliseconds
+     * @param outputPath Output file path for the Live Photo
+     * @param keyFrameTime Specific timestamp to use as key photo (within interval) or -1
+     * @return True if successful, false otherwise
+     */
+    public boolean createLivePhoto(Uri videoUri, long startTime, long endTime, String outputPath,
+                                   long keyFrameTime) {
         try {
             Log.d(TAG, "Creating Live Photo from " + startTime + "ms to " + endTime + "ms");
             
-            // Extract key photo (middle frame)
-            Bitmap keyPhoto = extractKeyPhoto(videoUri, startTime, endTime);
+            // Extract key photo (use provided timestamp if valid)
+            Bitmap keyPhoto = extractKeyPhoto(videoUri, startTime, endTime, keyFrameTime);
             if (keyPhoto == null) {
                 Log.e(TAG, "Failed to extract key photo");
                 return false;
@@ -55,8 +74,13 @@ public class LivePhotoEncoder {
                 return false;
             }
             
-            // Create HEIC container with motion data
-            boolean success = createHeicContainer(keyPhoto, motionFrames, outputPath);
+            // compute key frame offset relative to interval start
+            long offset = (keyFrameTime >= startTime && keyFrameTime <= endTime)
+                          ? keyFrameTime - startTime : 0;
+            // Create HEIC container with motion data and metadata
+            boolean success = createHeicContainer(keyPhoto, motionFrames, outputPath,
+                                                  endTime - startTime, motionFrames.size(),
+                                                  offset);
             
             // Clean up resources
             keyPhoto.recycle();
@@ -75,13 +99,26 @@ public class LivePhotoEncoder {
     /**
      * Extracts the key photo (still image) from the middle of the interval
      */
+    /**
+     * Extracts the key photo (still image) from the middle of the interval
+     * or from a specified timestamp if valid.
+     */
     public Bitmap extractKeyPhoto(Uri videoUri, long startTime, long endTime) {
+        return extractKeyPhoto(videoUri, startTime, endTime, -1);
+    }
+
+    public Bitmap extractKeyPhoto(Uri videoUri, long startTime, long endTime, long keyFrameTime) {
         try {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
             retriever.setDataSource(context, videoUri);
             
-            long middleTime = (startTime + endTime) / 2;
-            Bitmap frame = retriever.getFrameAtTime(middleTime * 1000, 
+            long timestamp;
+            if (keyFrameTime >= startTime && keyFrameTime <= endTime) {
+                timestamp = keyFrameTime;
+            } else {
+                timestamp = (startTime + endTime) / 2;
+            }
+            Bitmap frame = retriever.getFrameAtTime(timestamp * 1000, 
                 MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
             
             retriever.release();
@@ -152,30 +189,39 @@ public class LivePhotoEncoder {
      * Note: This is a simplified implementation - real HEIC creation
      * would require native libraries or external tools
      */
-    private boolean createHeicContainer(Bitmap keyPhoto, List<Bitmap> motionFrames, String outputPath) {
+    private boolean createHeicContainer(Bitmap keyPhoto, List<Bitmap> motionFrames, String outputPath,
+                                         long durationMs, int frameCount, long keyFrameOffsetMs) {
         try {
-            // For demonstration purposes, we'll save as JPEG with metadata
-            // A full implementation would use HEIF library or native code
-            
             File outputFile = new File(outputPath);
             FileOutputStream fos = new FileOutputStream(outputFile);
             
-            // Save key photo as JPEG
+            // Save key photo as JPEG (minimum viable container)
             keyPhoto.compress(Bitmap.CompressFormat.JPEG, 90, fos);
             fos.close();
             
-            // In a real implementation, we would:
-            // 1. Create HEIC container
-            // 2. Embed motion frames as auxiliary image sequence
-            // 3. Add Apple Motion Photo XMP metadata
-            // 4. Set proper MIME type and file extension
+            // Attach metadata so that some viewers recognize motion photo
+            String uuid = MetadataGenerator.generateMotionPhotoUUID();
+            String xmp = MetadataGenerator.generateAppleMotionPhotoMetadata(uuid, durationMs, frameCount, keyFrameOffsetMs);
+            appendXmpMetadata(outputFile, xmp);
             
-            Log.d(TAG, "Live Photo saved to: " + outputPath);
+            Log.d(TAG, "Live Photo saved to: " + outputPath + " (with metadata uuid=" + uuid + ")");
             return true;
             
         } catch (IOException e) {
             Log.e(TAG, "Error creating HEIC container", e);
             return false;
+        }
+    }
+
+    /**
+     * Appends XMP metadata string to the end of a JPEG file.  This is a
+     * rudimentary approach and not fully compliant with the JPEG spec, but
+     * works for simple proof‑of‑concept files.
+     */
+    private void appendXmpMetadata(File jpegFile, String xmp) throws IOException {
+        if (xmp == null || xmp.isEmpty()) return;
+        try (FileOutputStream fos = new FileOutputStream(jpegFile, true)) {
+            fos.write(xmp.getBytes("UTF-8"));
         }
     }
     

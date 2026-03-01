@@ -34,6 +34,7 @@ public class ExportActivity extends AppCompatActivity {
     private Uri videoUri;
     private long startTime;
     private long endTime;
+    private long keyFrameTime = -1;
     private LivePhotoEncoder livePhotoEncoder;
     private ExportManager exportManager;
     private String exportedFilePath;
@@ -62,6 +63,7 @@ public class ExportActivity extends AppCompatActivity {
         videoUri = getIntent().getParcelableExtra("VIDEO_URI");
         startTime = getIntent().getLongExtra("START_TIME", 0);
         endTime = getIntent().getLongExtra("END_TIME", 0);
+        keyFrameTime = getIntent().getLongExtra("KEY_FRAME_TIME", -1);
         
         livePhotoEncoder = new LivePhotoEncoder(this);
         exportManager = new ExportManager(this);
@@ -82,21 +84,26 @@ public class ExportActivity extends AppCompatActivity {
             formatTime(startTime),
             formatTime(endTime),
             formatDuration(endTime - startTime));
+        if (keyFrameTime >= startTime && keyFrameTime <= endTime) {
+            info += "\nKey frame: " + formatTime(keyFrameTime - startTime);
+        }
         
         tvExportInfo.setText(info);
         tvStatus.setText("Ready to create Live Photo");
         
-        // Load key photo preview
+        // Load key photo preview (respect custom key frame if provided)
         loadKeyPhotoPreview();
     }
     
     private void loadKeyPhotoPreview() {
         new Thread(() -> {
             try {
-                // Extract middle frame as key photo preview
-                long middleTime = (startTime + endTime) / 2;
+                // Determine which frame to use for preview
+                long previewTime = (keyFrameTime >= startTime && keyFrameTime <= endTime)
+                        ? keyFrameTime
+                        : (startTime + endTime) / 2;
                 android.graphics.Bitmap keyPhoto = livePhotoEncoder
-                    .extractKeyPhoto(videoUri, startTime, endTime);
+                    .extractKeyPhoto(videoUri, startTime, endTime, previewTime);
                 
                 runOnUiThread(() -> {
                     if (keyPhoto != null && !keyPhoto.isRecycled()) {
@@ -110,8 +117,8 @@ public class ExportActivity extends AppCompatActivity {
     }
     
     private void startExport() {
-        if (!livePhotoEncoder.validateParameters(startTime, endTime, 
-            endTime - startTime + 1000)) { // Approximate duration
+        long videoApproxDuration = endTime - startTime + 1000; // rough
+        if (!livePhotoEncoder.validateParameters(startTime, endTime, videoApproxDuration)) {
             Toast.makeText(this, "Invalid time interval", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -125,7 +132,7 @@ public class ExportActivity extends AppCompatActivity {
         btnExport.setEnabled(false);
         tvStatus.setText("Exporting...");
         
-        exportManager.exportToGalleryAsync(videoUri, startTime, endTime,
+        exportManager.exportToGalleryAsync(videoUri, startTime, endTime, keyFrameTime,
             new ExportManager.ExportCallback() {
                 @Override
                 public void onProgress(int percentage, String message) {

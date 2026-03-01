@@ -22,6 +22,17 @@ public class MetadataGenerator {
     public static String generateAppleMotionPhotoMetadata(String motionPhotoUUID, 
                                                          long duration, 
                                                          int frameCount) {
+        return generateAppleMotionPhotoMetadata(motionPhotoUUID, duration, frameCount, -1);
+    }
+
+    /**
+     * @param keyFrameOffsetMs optional time offset within motion clip to mark as
+     *                         the still image (relative to start); pass -1 to leave at 0.
+     */
+    public static String generateAppleMotionPhotoMetadata(String motionPhotoUUID, 
+                                                         long duration, 
+                                                         int frameCount,
+                                                         long keyFrameOffsetMs) {
         try {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US);
             String timestamp = dateFormat.format(new Date());
@@ -40,7 +51,9 @@ public class MetadataGenerator {
             xmp.append("       <GCamera:MediaVersion>1</GCamera:MediaVersion>\n");
             xmp.append("       <GCamera:MotionPhoto>1</GCamera:MotionPhoto>\n");
             xmp.append("       <GCamera:MotionPhotoVersion>1</GCamera:MotionPhotoVersion>\n");
-            xmp.append("       <GCamera:MotionPhotoPresentationTimestampUs>0</GCamera:MotionPhotoPresentationTimestampUs>\n");
+            xmp.append("       <GCamera:MotionPhotoPresentationTimestampUs>")
+                .append(keyFrameOffsetMs > 0 ? (keyFrameOffsetMs * 1000) : 0)
+                .append("</GCamera:MotionPhotoPresentationTimestampUs>\n");
             xmp.append("      </rdf:Description>\n");
             xmp.append("     </rdf:li>\n");
             xmp.append("    </rdf:Seq>\n");
@@ -49,7 +62,9 @@ public class MetadataGenerator {
             // Motion photo metadata
             xmp.append("   <GCamera:MotionPhoto>1</GCamera:MotionPhoto>\n");
             xmp.append("   <GCamera:MotionPhotoVersion>1</GCamera:MotionPhotoVersion>\n");
-            xmp.append("   <GCamera:MotionPhotoPresentationTimestampUs>0</GCamera:MotionPhotoPresentationTimestampUs>\n");
+            xmp.append("   <GCamera:MotionPhotoPresentationTimestampUs>")
+                .append(keyFrameOffsetMs > 0 ? (keyFrameOffsetMs * 1000) : 0)
+                .append("</GCamera:MotionPhotoPresentationTimestampUs>\n");
             
             xmp.append("  </rdf:Description>\n");
             

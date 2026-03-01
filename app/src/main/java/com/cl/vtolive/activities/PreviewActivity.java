@@ -177,9 +177,12 @@ public class PreviewActivity extends AppCompatActivity {
     
     private void useCurrentFrameAsKeyPhoto() {
         // Return the current time as the key photo timestamp
-        Toast.makeText(this, "Will use frame at " + formatTime(currentTime - startTime) + 
+        Intent result = new Intent();
+        result.putExtra("KEY_FRAME_TIME", currentTime);
+        setResult(Activity.RESULT_OK, result);
+        Toast.makeText(this, "Using frame at " + formatTime(currentTime - startTime) + 
                       " as key photo", Toast.LENGTH_SHORT).show();
-        // TODO: Pass this information to export activity
+        finish();
     }
     
     private String formatTime(long milliseconds) {

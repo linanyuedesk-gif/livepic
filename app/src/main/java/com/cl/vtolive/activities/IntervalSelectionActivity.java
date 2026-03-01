@@ -72,6 +72,10 @@ public class IntervalSelectionActivity extends AppCompatActivity {
         timelineView.setInterval(startTime, endTime);
     }
     
+    private static final int PREVIEW_REQUEST_CODE = 2001;
+
+    private long selectedKeyFrameTime = -1;
+
     private void setupListeners() {
         timelineView.setOnIntervalChangeListener(new TimelineView.OnIntervalChangeListener() {
             @Override
@@ -180,7 +184,7 @@ public class IntervalSelectionActivity extends AppCompatActivity {
         intent.putExtra("VIDEO_URI", videoUri);
         intent.putExtra("START_TIME", startTime);
         intent.putExtra("END_TIME", endTime);
-        startActivity(intent);
+        startActivityForResult(intent, PREVIEW_REQUEST_CODE);
     }
     
     private void confirmSelection() {
@@ -194,6 +198,9 @@ public class IntervalSelectionActivity extends AppCompatActivity {
         intent.putExtra("VIDEO_URI", videoUri);
         intent.putExtra("START_TIME", timelineView.getStartTime());
         intent.putExtra("END_TIME", timelineView.getEndTime());
+        if (selectedKeyFrameTime >= 0) {
+            intent.putExtra("KEY_FRAME_TIME", selectedKeyFrameTime);
+        }
         startActivity(intent);
         
         finish();
@@ -219,6 +226,19 @@ public class IntervalSelectionActivity extends AppCompatActivity {
             long minutes = seconds / 60;
             seconds = seconds % 60;
             return String.format("%d:%02d", minutes, seconds);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PREVIEW_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
+            selectedKeyFrameTime = data.getLongExtra("KEY_FRAME_TIME", -1);
+            if (selectedKeyFrameTime >= 0) {
+                Toast.makeText(this, "Key frame chosen at " +
+                        formatTime(selectedKeyFrameTime - timelineView.getStartTime()),
+                        Toast.LENGTH_SHORT).show();
+            }
         }
     }
 }
