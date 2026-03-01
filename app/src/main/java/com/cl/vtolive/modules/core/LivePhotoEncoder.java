@@ -75,7 +75,7 @@ public class LivePhotoEncoder {
     /**
      * Extracts the key photo (still image) from the middle of the interval
      */
-    private Bitmap extractKeyPhoto(Uri videoUri, long startTime, long endTime) {
+    public Bitmap extractKeyPhoto(Uri videoUri, long startTime, long endTime) {
         try {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
             retriever.setDataSource(context, videoUri);
