@@ -192,9 +192,10 @@ public class ExportManager {
         return startTime >= 0 && endTime > startTime;
     }
     
-    private String generateFilename() {
+       private String generateFilename() {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
-        return "LivePhoto_" + uuid + "_" + System.currentTimeMillis() + ".jpg";
+        // use .heic extension to signal proper container
+        return "LivePhoto_" + uuid + "_" + System.currentTimeMillis() + ".heic";
     }
     
     private String getBaseOutputPath() {
@@ -214,7 +215,8 @@ public class ExportManager {
         try {
             ContentValues values = new ContentValues();
             values.put(MediaStore.Images.Media.DISPLAY_NAME, displayName);
-            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            // HEIC container created by native encoder
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/heic");
             values.put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000);
             values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
             values.put(MediaStore.Images.Media.DATA, filePath);

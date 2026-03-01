@@ -179,7 +179,7 @@ public class ExportActivity extends AppCompatActivity {
             @Override
             public void onShareUriReady(Uri shareUri) {
                 Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("image/jpeg");
+                shareIntent.setType("image/heic");
                 shareIntent.putExtra(Intent.EXTRA_STREAM, shareUri);
                 shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 startActivity(Intent.createChooser(shareIntent, "Share Live Photo"));

@@ -15,7 +15,10 @@ metadata).  The new multi‑page workflow is:
 4. **Export** – generate the Live Photo, save to gallery, and share it.
 
 Under the hood the app extracts key frames and motion frames using
-`MediaMetadataRetriever` and writes a JPEG with appended XMP metadata.
+`MediaMetadataRetriever` and encodes them into a proper HEIF/HEIC
+container via a native library (libheif) called from JNI.  The
+result is a fully‑compliant Live Photo file carrying Apple MotionPhoto
+XMP metadata.
 
 > Legacy activities (single‑page `MainActivity` and `modules.ui
 > IntervalSelectorActivity`) have been removed during refactor.

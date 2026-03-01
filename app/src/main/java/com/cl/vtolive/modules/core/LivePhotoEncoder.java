@@ -20,6 +20,15 @@ import java.util.List;
  */
 public class LivePhotoEncoder {
     private static final String TAG = "LivePhotoEncoder";
+
+    static {
+        System.loadLibrary("native-lib");
+    }
+
+    private static native boolean nativeEncodeHeif(String keyPath,
+                                                   String[] motionPaths,
+                                                   String outPath,
+                                                   String xmp);
     private static final int TARGET_WIDTH = 1920;
     private static final int TARGET_HEIGHT = 1080;
     private static final int FPS = 15; // Frames per second for motion sequence
@@ -192,21 +201,33 @@ public class LivePhotoEncoder {
     private boolean createHeicContainer(Bitmap keyPhoto, List<Bitmap> motionFrames, String outputPath,
                                          long durationMs, int frameCount, long keyFrameOffsetMs) {
         try {
-            File outputFile = new File(outputPath);
-            FileOutputStream fos = new FileOutputStream(outputFile);
-            
-            // Save key photo as JPEG (minimum viable container)
-            keyPhoto.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-            fos.close();
-            
-            // Attach metadata so that some viewers recognize motion photo
+            // write temporary files for key and motion frames
+            File cacheDir = context.getCacheDir();
+            File keyFile = new File(cacheDir, "key.jpg");
+            try (FileOutputStream fos = new FileOutputStream(keyFile)) {
+                keyPhoto.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+            }
+
+            String[] motionPaths = new String[motionFrames.size()];
+            for (int i = 0; i < motionFrames.size(); i++) {
+                File mf = new File(cacheDir, "motion_" + i + ".jpg");
+                try (FileOutputStream fos = new FileOutputStream(mf)) {
+                    motionFrames.get(i).compress(Bitmap.CompressFormat.JPEG, 80, fos);
+                }
+                motionPaths[i] = mf.getAbsolutePath();
+            }
+
             String uuid = MetadataGenerator.generateMotionPhotoUUID();
             String xmp = MetadataGenerator.generateAppleMotionPhotoMetadata(uuid, durationMs, frameCount, keyFrameOffsetMs);
-            appendXmpMetadata(outputFile, xmp);
-            
+
+            boolean ok = nativeEncodeHeif(keyFile.getAbsolutePath(), motionPaths, outputPath, xmp);
+            if (!ok) {
+                Log.e(TAG, "nativeEncodeHeif failed");
+                return false;
+            }
+
             Log.d(TAG, "Live Photo saved to: " + outputPath + " (with metadata uuid=" + uuid + ")");
             return true;
-            
         } catch (IOException e) {
             Log.e(TAG, "Error creating HEIC container", e);
             return false;
