@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">VToLive</string>
+    <string name="config_title">Convert Video to Live Photo</string>
+    <string name="btn_select_video">Select Video</string>
+    <string name="btn_convert">Convert to Live Photo</string>
+    <string name="hint_select_video">Choose a video file to convert</string>
+    <string name="msg_conversion_error">Conversion failed</string>
+    <string name="permission_rationale">Video access permission is required.</string>
+    <string name="converted_title">Converted Videos</string>
+    <string name="converted_empty">No converted videos</string>
+    <string name="btn_choose_duration">Choose Duration</string>
+    <string name="msg_processing">Processing...</string>
+    <string name="msg_conversion_complete">Conversion complete!</string>
+    <string name="msg_no_video_selected">No video selected</string>
+    <string name="instruction">Tap to select video</string>
+</resources>
