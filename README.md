@@ -15,13 +15,15 @@ metadata).  The new multi‑page workflow is:
 4. **Export** – generate the Live Photo, save to gallery, and share it.
 
 Under the hood the app extracts key frames and motion frames using
-`MediaMetadataRetriever` and encodes them into a proper HEIF/HEIC
-container via a native library (libheif) called from JNI.  The
-result is a fully‑compliant Live Photo file carrying Apple MotionPhoto
-XMP metadata.
+`MediaMetadataRetriever` and produces **Apple-compatible Live Photos**:
+- **HEIC file**: Key frame only, with XMP metadata and ContentIdentifier
+- **MOV file**: H.264 motion video with `com.apple.quicktime.content.identifier`
+Both files share the same UUID for pairing on iPhone, Photos app, WeChat
+Moments, and AirDrop.
 
-**Pre-build step:** the `libheif` directory must exist before
-running Gradle.  Clone it manually or initialise submodules:
+**Pre-build step:** the `libheif` source tree must exist under
+`app/src/main/cpp/libheif` before running Gradle.  Clone it
+manually or initialise submodules:
 
 ```bash
 git submodule update --init --recursive
@@ -29,8 +31,9 @@ git submodule update --init --recursive
 git clone https://github.com/strukturag/libheif.git app/src/main/cpp/libheif
 ```
 
-CMakeLists.txt will warn if the path is missing, but the build will
-fail without the library.
+The native `CMakeLists.txt` will fail fast with a clear error
+message if `libheif` is missing or incomplete, since the app
+cannot encode Live Photos without it.
 
 > Legacy activities (single‑page `MainActivity` and `modules.ui
 > IntervalSelectorActivity`) have been removed during refactor.

@@ -24,9 +24,9 @@ import java.util.List;
  */
 public class IntervalSelectionActivity extends AppCompatActivity {
     private static final String TAG = "IntervalSelectionActivity";
-    public static final String EXTRA_VIDEO_URI = "video_uri";
-    public static final String EXTRA_START_TIME = "start_time";
-    public static final String EXTRA_END_TIME = "end_time";
+    public static final String EXTRA_VIDEO_URI = "VIDEO_URI";
+    public static final String EXTRA_START_TIME = "START_TIME";
+    public static final String EXTRA_END_TIME = "END_TIME";
     
     private TimelineView timelineView;
     private TextView tvVideoInfo;
@@ -181,9 +181,9 @@ public class IntervalSelectionActivity extends AppCompatActivity {
         long endTime = timelineView.getEndTime();
         
         Intent intent = new Intent(this, PreviewActivity.class);
-        intent.putExtra("VIDEO_URI", videoUri);
-        intent.putExtra("START_TIME", startTime);
-        intent.putExtra("END_TIME", endTime);
+        intent.putExtra(EXTRA_VIDEO_URI, videoUri);
+        intent.putExtra(EXTRA_START_TIME, startTime);
+        intent.putExtra(EXTRA_END_TIME, endTime);
         startActivityForResult(intent, PREVIEW_REQUEST_CODE);
     }
     
@@ -195,9 +195,9 @@ public class IntervalSelectionActivity extends AppCompatActivity {
         
         // Navigate to export page
         Intent intent = new Intent(this, ExportActivity.class);
-        intent.putExtra("VIDEO_URI", videoUri);
-        intent.putExtra("START_TIME", timelineView.getStartTime());
-        intent.putExtra("END_TIME", timelineView.getEndTime());
+        intent.putExtra(EXTRA_VIDEO_URI, videoUri);
+        intent.putExtra(EXTRA_START_TIME, timelineView.getStartTime());
+        intent.putExtra(EXTRA_END_TIME, timelineView.getEndTime());
         if (selectedKeyFrameTime >= 0) {
             intent.putExtra("KEY_FRAME_TIME", selectedKeyFrameTime);
         }

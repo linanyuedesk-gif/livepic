@@ -25,10 +25,9 @@ public class LivePhotoEncoder {
         System.loadLibrary("native-lib");
     }
 
-    private static native boolean nativeEncodeHeif(String keyPath,
-                                                   String[] motionPaths,
-                                                   String outPath,
-                                                   String xmp);
+    private static native boolean nativeEncodeHeicKeyOnly(String keyPath,
+                                                         String outPath,
+                                                         String xmp);
     private static final int TARGET_WIDTH = 1920;
     private static final int TARGET_HEIGHT = 1080;
     private static final int FPS = 15; // Frames per second for motion sequence
@@ -194,42 +193,50 @@ public class LivePhotoEncoder {
     }
     
     /**
-     * Creates HEIC container with embedded motion data
-     * Note: This is a simplified implementation - real HEIC creation
-     * would require native libraries or external tools
+     * Creates Apple-compatible Live Photo: HEIC (key only) + MOV (H.264 motion video).
+     * Both files share the same ContentIdentifier for pairing on iPhone, Photos, WeChat, AirDrop.
      */
     private boolean createHeicContainer(Bitmap keyPhoto, List<Bitmap> motionFrames, String outputPath,
                                          long durationMs, int frameCount, long keyFrameOffsetMs) {
         try {
-            // write temporary files for key and motion frames
+            String contentId = MetadataGenerator.generateMotionPhotoUUID();
+            String xmp = MetadataGenerator.generateAppleMotionPhotoMetadata(contentId, durationMs, frameCount, keyFrameOffsetMs);
+
             File cacheDir = context.getCacheDir();
             File keyFile = new File(cacheDir, "key.jpg");
             try (FileOutputStream fos = new FileOutputStream(keyFile)) {
                 keyPhoto.compress(Bitmap.CompressFormat.JPEG, 90, fos);
             }
 
-            String[] motionPaths = new String[motionFrames.size()];
-            for (int i = 0; i < motionFrames.size(); i++) {
-                File mf = new File(cacheDir, "motion_" + i + ".jpg");
-                try (FileOutputStream fos = new FileOutputStream(mf)) {
-                    motionFrames.get(i).compress(Bitmap.CompressFormat.JPEG, 80, fos);
-                }
-                motionPaths[i] = mf.getAbsolutePath();
+            String heicPath = outputPath;
+            if (!heicPath.toLowerCase().endsWith(".heic")) {
+                heicPath = outputPath.replaceAll("(?i)\\.(mov|mp4)$", "") + ".heic";
             }
+            String basePath = heicPath.replaceAll("(?i)\\.heic$", "");
+            String movPath = basePath + ".mov";
 
-            String uuid = MetadataGenerator.generateMotionPhotoUUID();
-            String xmp = MetadataGenerator.generateAppleMotionPhotoMetadata(uuid, durationMs, frameCount, keyFrameOffsetMs);
-
-            boolean ok = nativeEncodeHeif(keyFile.getAbsolutePath(), motionPaths, outputPath, xmp);
+            boolean ok = nativeEncodeHeicKeyOnly(keyFile.getAbsolutePath(), heicPath, xmp);
             if (!ok) {
-                Log.e(TAG, "nativeEncodeHeif failed");
+                Log.e(TAG, "nativeEncodeHeicKeyOnly failed");
                 return false;
             }
 
-            Log.d(TAG, "Live Photo saved to: " + outputPath + " (with metadata uuid=" + uuid + ")");
+            VideoSegmentEncoder videoEncoder = new VideoSegmentEncoder(context);
+            boolean vidOk = videoEncoder.encodeFrames(motionFrames, movPath);
+            if (!vidOk) {
+                Log.e(TAG, "Video segment encoding failed");
+                new File(heicPath).delete();
+                return false;
+            }
+
+            if (!MovMetadataInjector.injectContentIdentifier(movPath, contentId)) {
+                Log.w(TAG, "Could not inject ContentIdentifier into MOV (pairing may fail on some devices)");
+            }
+
+            Log.d(TAG, "Live Photo saved: HEIC + MOV (uuid=" + contentId + ")");
             return true;
         } catch (IOException e) {
-            Log.e(TAG, "Error creating HEIC container", e);
+            Log.e(TAG, "Error creating Live Photo", e);
             return false;
         }
     }

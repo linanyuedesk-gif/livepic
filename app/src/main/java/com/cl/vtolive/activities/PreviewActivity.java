@@ -109,17 +109,18 @@ public class PreviewActivity extends AppCompatActivity {
     }
     
     private void loadFrameAtTime(long timestamp) {
+        if (videoUri == null) return;
         new Thread(() -> {
             try {
-                VideoProcessor.FrameInfo frameInfo = videoProcessor
-                    .extractFramesAtTimestamps(videoUri, Arrays.asList(timestamp))
-                    .get(0);
-                
+                java.util.List<VideoProcessor.FrameInfo> frames = videoProcessor
+                    .extractFramesAtTimestamps(videoUri, Arrays.asList(timestamp));
+                if (frames == null || frames.isEmpty()) return;
+                VideoProcessor.FrameInfo frameInfo = frames.get(0);
                 runOnUiThread(() -> {
-                    if (frameInfo.bitmap != null && !frameInfo.bitmap.isRecycled()) {
+                    if (frameInfo != null && frameInfo.bitmap != null && !frameInfo.bitmap.isRecycled()) {
                         ivPreview.setImageBitmap(frameInfo.bitmap);
                     }
-                    frameInfo.recycle();
+                    if (frameInfo != null) frameInfo.recycle();
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading frame", e);

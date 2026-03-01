@@ -1,14 +1,21 @@
 #include <jni.h>
 #include <string>
+#include <cstring>
 #include "heif/heif.h"
 
 extern "C" {
 
+/*
+ * Apple Live Photo format requires TWO separate files:
+ * 1. HEIC: key (still) image only, with ContentIdentifier in metadata
+ * 2. MOV: HEVC video, with com.apple.quicktime.content.identifier matching
+ *
+ * This encodes only the key frame to HEIC. Motion is in a separate MOV file.
+ */
 JNIEXPORT jboolean JNICALL
-Java_com_cl_vtolive_modules_core_LivePhotoEncoder_nativeEncodeHeif(
+Java_com_cl_vtolive_modules_core_LivePhotoEncoder_nativeEncodeHeicKeyOnly(
         JNIEnv* env, jclass /*clazz*/,
-        jstring keyPath, jobjectArray motionPaths,
-        jstring outPath, jstring xmpStr) {
+        jstring keyPath, jstring outPath, jstring xmpStr) {
     const char* key = env->GetStringUTFChars(keyPath, nullptr);
     const char* out = env->GetStringUTFChars(outPath, nullptr);
     const char* xmp = env->GetStringUTFChars(xmpStr, nullptr);
@@ -17,28 +24,10 @@ Java_com_cl_vtolive_modules_core_LivePhotoEncoder_nativeEncodeHeif(
     heif_error err = heif_context_read_from_file(ctx, key);
     if (err.code != heif_error_Ok) goto fail;
 
-    int count = env->GetArrayLength(motionPaths);
-    for (int i = 0; i < count; i++) {
-        jstring pathObj = (jstring) env->GetObjectArrayElement(motionPaths, i);
-        const char* path = env->GetStringUTFChars(pathObj, nullptr);
-        heif_context* tmp = heif_context_alloc();
-        heif_error err2 = heif_context_read_from_file(tmp, path);
-        if (err2.code == heif_error_Ok) {
-            heif_image_handle* handle;
-            err2 = heif_context_get_primary_image_handle(tmp, &handle);
-            if (err2.code == heif_error_Ok) {
-                heif_context_add_image(ctx, handle);
-            }
-        }
-        env->ReleaseStringUTFChars(pathObj, path);
-        env->DeleteLocalRef(pathObj);
-        heif_context_free(tmp);
-    }
-
     if (xmp && *xmp) {
         heif_context_set_xmp_metadata(ctx,
                                       reinterpret_cast<const uint8_t*>(xmp),
-                                      strlen(xmp));
+                                      static_cast<size_t>(strlen(xmp)));
     }
 
     err = heif_context_write_to_file(ctx, out);
@@ -58,4 +47,4 @@ fail:
     return JNI_FALSE;
 }
 
-}
+}  // extern "C"

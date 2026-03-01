@@ -74,11 +74,10 @@ public class ExportManager {
                 return new ExportResult(false, null, "Failed to encode Live Photo");
             }
             
-            // Add to MediaStore
-            Uri mediaStoreUri = addToMediaStore(filename, filePath);
-            
-            // Scan for media availability
+            addToMediaStore(filename, filePath);
+            String movPath = filePath.replaceAll("(?i)\\.heic$", "") + ".mov";
             scanMediaFile(filePath);
+            if (new File(movPath).exists()) scanMediaFile(movPath);
             
             Log.d(TAG, "Live Photo exported successfully: " + filePath);
             return new ExportResult(true, filePath, null);
@@ -120,6 +119,8 @@ public class ExportManager {
                 
                 callback.onProgress(90, "Scanning media...");
                 scanMediaFile(filePath);
+                String movPath = filePath.replaceAll("(?i)\\.heic$", "") + ".mov";
+                if (new File(movPath).exists()) scanMediaFile(movPath);
                 
                 callback.onProgress(100, "Complete!");
                 callback.onSuccess(filePath, mediaStoreUri);
@@ -132,20 +133,29 @@ public class ExportManager {
     }
     
     /**
-     * Shares Live Photo file
+     * Shares Live Photo (HEIC + MOV) for iPhone/Photos/WeChat compatibility
      */
-    public void shareLivePhoto(String filePath, ShareCallback callback) {
+    public void shareLivePhoto(String heicPath, ShareCallback callback) {
         try {
-            File file = new File(filePath);
-            if (!file.exists()) {
-                callback.onError("File not found: " + filePath);
+            File heicFile = new File(heicPath);
+            if (!heicFile.exists()) {
+                callback.onError("File not found: " + heicPath);
                 return;
             }
-            
-            // Create content URI for sharing
-            Uri contentUri = createShareUri(file);
-            callback.onShareUriReady(contentUri);
-            
+            java.util.ArrayList<Uri> uris = new java.util.ArrayList<>();
+            Uri heicUri = createShareUri(heicFile, "image/heic");
+            if (heicUri != null) uris.add(heicUri);
+            String movPath = heicPath.replaceAll("(?i)\\.heic$", "") + ".mov";
+            File movFile = new File(movPath);
+            if (movFile.exists()) {
+                Uri movUri = createShareUri(movFile, "video/quicktime");
+                if (movUri != null) uris.add(movUri);
+            }
+            if (uris.isEmpty()) {
+                callback.onError("Could not create share URIs");
+                return;
+            }
+            callback.onShareUrisReady(uris);
         } catch (Exception e) {
             Log.e(TAG, "Error sharing Live Photo", e);
             callback.onError(e.getMessage());
@@ -240,15 +250,17 @@ public class ExportManager {
         }
     }
     
-    private Uri createShareUri(File file) {
+    private Uri createShareUri(File file, String mimeType) {
         try {
             ContentValues values = new ContentValues();
-            values.put(MediaStore.Images.Media.DISPLAY_NAME, file.getName());
-            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, file.getName());
+            values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
+            values.put(MediaStore.MediaColumns.IS_PENDING, 1);
             
             ContentResolver resolver = context.getContentResolver();
-            Uri collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            Uri collection = mimeType.startsWith("video/")
+                    ? MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    : MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
             Uri item = resolver.insert(collection, values);
             
             if (item != null) {
@@ -261,9 +273,8 @@ public class ExportManager {
                     }
                 }
                 
-                // Mark as completed
                 values.clear();
-                values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0);
                 resolver.update(item, values, null, null);
             }
             
@@ -283,7 +294,7 @@ public class ExportManager {
     }
     
     public interface ShareCallback {
-        void onShareUriReady(Uri shareUri);
+        void onShareUrisReady(java.util.ArrayList<Uri> uris);
         void onError(String error);
     }
     

@@ -79,6 +79,12 @@ public class ExportActivity extends AppCompatActivity {
     }
     
     private void showExportPreview() {
+        if (videoUri == null) {
+            tvExportInfo.setText("No video selected");
+            tvStatus.setText("Go back and select a video first");
+            btnExport.setEnabled(false);
+            return;
+        }
         String info = String.format("Video: %s\nInterval: %s - %s\nDuration: %s",
             getFileName(videoUri),
             formatTime(startTime),
@@ -91,11 +97,11 @@ public class ExportActivity extends AppCompatActivity {
         tvExportInfo.setText(info);
         tvStatus.setText("Ready to create Live Photo");
         
-        // Load key photo preview (respect custom key frame if provided)
         loadKeyPhotoPreview();
     }
     
     private void loadKeyPhotoPreview() {
+        if (videoUri == null) return;
         new Thread(() -> {
             try {
                 // Determine which frame to use for preview
@@ -177,12 +183,18 @@ public class ExportActivity extends AppCompatActivity {
         
         exportManager.shareLivePhoto(exportedFilePath, new ExportManager.ShareCallback() {
             @Override
-            public void onShareUriReady(Uri shareUri) {
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("image/heic");
-                shareIntent.putExtra(Intent.EXTRA_STREAM, shareUri);
+            public void onShareUrisReady(java.util.ArrayList<Uri> uris) {
+                Intent shareIntent = uris.size() > 1
+                        ? new Intent(Intent.ACTION_SEND_MULTIPLE)
+                        : new Intent(Intent.ACTION_SEND);
+                shareIntent.setType(uris.size() > 1 ? "*/*" : "image/heic");
                 shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                startActivity(Intent.createChooser(shareIntent, "Share Live Photo"));
+                if (uris.size() > 1) {
+                    shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+                } else {
+                    shareIntent.putExtra(Intent.EXTRA_STREAM, uris.get(0));
+                }
+                startActivity(Intent.createChooser(shareIntent, "Share Live Photo (HEIC + MOV)"));
             }
             
             @Override

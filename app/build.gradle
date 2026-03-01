@@ -31,7 +31,8 @@ android {
     }
     externalNativeBuild {
         cmake {
-            path "../CMakeLists.txt"
+            // Use the module-local CMakeLists for the native HEIF encoder
+            path "src/main/cpp/CMakeLists.txt"
         }
     }
     compileOptions {

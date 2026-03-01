@@ -95,8 +95,7 @@ public class MetadataGenerator {
      * @return UUID string
      */
     public static String generateMotionPhotoUUID() {
-        return "motionphoto_" + System.currentTimeMillis() + "_" + 
-               Integer.toHexString((int) (Math.random() * 0x10000));
+        return java.util.UUID.randomUUID().toString();
     }
     
     /**
