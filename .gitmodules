@@ -1,0 +1,3 @@
+[submodule "app/src/main/cpp/libheif"]
+	path = app/src/main/cpp/libheif
+	url = https://github.com/strukturag/libheif.git
