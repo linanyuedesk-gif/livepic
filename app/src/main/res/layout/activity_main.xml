@@ -46,6 +46,32 @@
             android:shadowDy="2"
             android:shadowRadius="3" />
 
+        <!-- Frame Position Text -->
+        <TextView
+            android:id="@+id/tvFramePosition"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="00:00 / 00:00"
+            android:textColor="#FFD700"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp"
+            android:shadowColor="#AA000000"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="2" />
+
+        <!-- Frame Selection SeekBar -->
+        <SeekBar
+            android:id="@+id/seekBarFrame"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone"
+            android:thumbTint="#FFD700"
+            android:progressTint="#FFD700"
+            android:backgroundTint="#FFFFFF" />
+
         <!-- Status Text -->
         <TextView
             android:id="@+id/tvStatus"
@@ -55,7 +81,7 @@
             android:textColor="#64B5F6"
             android:textSize="18sp"
             android:gravity="center"
-            android:layout_marginBottom="32dp"
+            android:layout_marginBottom="24dp"
             android:shadowColor="#AA000000"
             android:shadowDx="1"
             android:shadowDy="1"
@@ -66,7 +92,7 @@
             android:id="@+id/progressBar"
             android:layout_width="64dp"
             android:layout_height="64dp"
-            android:layout_marginBottom="32dp"
+            android:layout_marginBottom="24dp"
             android:visibility="gone"
             android:indeterminateTint="#64B5F6" />
 
@@ -74,31 +100,53 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:gravity="center"
             android:layout_marginTop="16dp">
 
-            <!-- Select Video Button -->
-            <Button
-                android:id="@+id/btnSelectVideo"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:layout_marginEnd="8dp"
-                android:text="@string/btn_select_video"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:backgroundTint="#2196F3"
-                android:textColor="#FFFFFF"
-                app:cornerRadius="12dp" />
+            <!-- Top Row Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+
+                <!-- Select Video Button -->
+                <Button
+                    android:id="@+id/btnSelectVideo"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:text="@string/btn_select_video"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#2196F3"
+                    android:textColor="#FFFFFF"
+                    app:cornerRadius="12dp" />
+
+                <!-- Frame Selector Button -->
+                <Button
+                    android:id="@+id/btnFrameSelector"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Select Frame"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:enabled="false"
+                    android:backgroundTint="#9C27B0"
+                    android:textColor="#FFFFFF"
+                    app:cornerRadius="12dp" />
+
+            </LinearLayout>
 
             <!-- Convert Button -->
             <Button
                 android:id="@+id/btnConvert"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="60dp"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
                 android:text="@string/btn_convert"
                 android:textSize="16sp"
                 android:textStyle="bold"

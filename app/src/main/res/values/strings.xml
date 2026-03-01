@@ -13,4 +13,5 @@
     <string name="msg_conversion_complete">Conversion complete!</string>
     <string name="msg_no_video_selected">No video selected</string>
     <string name="instruction">Tap to select video</string>
+    <string name="btn_select_frame">Select Frame</string>
 </resources>

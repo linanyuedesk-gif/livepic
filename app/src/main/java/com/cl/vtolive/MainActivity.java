@@ -30,6 +30,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -59,10 +60,15 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private Button btnSelectVideo;
     private Button btnConvert;
+    private Button btnFrameSelector;
+    private SeekBar seekBarFrame;
+    private TextView tvFramePosition;
     private FrameLayout rootLayout;
     
     private Uri selectedVideoUri;
     private String convertedPhotoPath;
+    private long videoDuration = 0;
+    private long selectedFrameTime = 0;
     private Handler handler = new Handler(Looper.getMainLooper());
     
     @Override
@@ -90,6 +96,11 @@ public class MainActivity extends AppCompatActivity {
         loadSavedState();
         checkPermissions();
         setupClickListeners();
+        
+        // Initially disable frame selection
+        btnFrameSelector.setEnabled(false);
+        seekBarFrame.setVisibility(View.GONE);
+        
         hideSystemUI();
     }
     
@@ -100,6 +111,9 @@ public class MainActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         btnSelectVideo = findViewById(R.id.btnSelectVideo);
         btnConvert = findViewById(R.id.btnConvert);
+        btnFrameSelector = findViewById(R.id.btnFrameSelector);
+        seekBarFrame = findViewById(R.id.seekBarFrame);
+        tvFramePosition = findViewById(R.id.tvFramePosition);
         rootLayout = findViewById(R.id.rootLayout);
     }
     
@@ -142,6 +156,24 @@ public class MainActivity extends AppCompatActivity {
     private void setupClickListeners() {
         btnSelectVideo.setOnClickListener(v -> selectVideo());
         btnConvert.setOnClickListener(v -> convertToLivePhoto());
+        btnFrameSelector.setOnClickListener(v -> showFrameSelectionDialog());
+        
+        seekBarFrame.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && videoDuration > 0) {
+                    selectedFrameTime = (long) (progress * videoDuration / 100.0);
+                    updateFramePositionText();
+                    updatePreviewFrame();
+                }
+            }
+            
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
         
         rootLayout.setOnClickListener(v -> {
             if (selectedVideoUri == null) {
@@ -197,16 +229,12 @@ public class MainActivity extends AppCompatActivity {
     
     private boolean performConversion() {
         try {
-            // Extract frame from video (middle point)
+            // Extract frame from video at selected time
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
             retriever.setDataSource(this, selectedVideoUri);
             
-            // Get video duration
-            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-            long duration = Long.parseLong(durationStr);
-            
-            // Get frame at middle of video
-            Bitmap bitmap = retriever.getFrameAtTime(duration / 2 * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+            // Get frame at selected time
+            Bitmap bitmap = retriever.getFrameAtTime(selectedFrameTime * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
             retriever.release();
             
             if (bitmap == null) {
@@ -267,13 +295,31 @@ public class MainActivity extends AppCompatActivity {
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
                 retriever.setDataSource(this, selectedVideoUri);
                 
+                // Get video duration
+                String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                if (durationStr != null) {
+                    videoDuration = Long.parseLong(durationStr);
+                }
+                
+                // Set default frame time to middle of video
+                selectedFrameTime = videoDuration / 2;
+                
                 // Get thumbnail
-                Bitmap thumbnail = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                Bitmap thumbnail = retriever.getFrameAtTime(selectedFrameTime * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
                 if (thumbnail != null) {
                     ivPreview.setImageBitmap(thumbnail);
                     ivPreview.setVisibility(View.VISIBLE);
                     tvInstruction.setText(getString(R.string.hint_select_video));
                 }
+                
+                // Update frame position text
+                updateFramePositionText();
+                
+                // Enable frame selection controls
+                btnFrameSelector.setEnabled(true);
+                seekBarFrame.setVisibility(View.VISIBLE);
+                int progress = (int) (selectedFrameTime * 100 / videoDuration);
+                seekBarFrame.setProgress(progress);
                 
                 retriever.release();
             } catch (Exception e) {
@@ -304,6 +350,13 @@ public class MainActivity extends AppCompatActivity {
                 displayVideoPreview();
                 btnConvert.setEnabled(true);
                 tvStatus.setText("");
+                
+                // Reset frame selection
+                videoDuration = 0;
+                selectedFrameTime = 0;
+                seekBarFrame.setVisibility(View.GONE);
+                btnFrameSelector.setEnabled(false);
+                tvFramePosition.setText("00:00 / 00:00");
             }
         }
     }
@@ -366,6 +419,88 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         hideSystemUI();
+    }
+    
+    private void showFrameSelectionDialog() {
+        if (selectedVideoUri == null || videoDuration == 0) {
+            Toast.makeText(this, "Please select a video first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select Frame Position");
+        
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 30, 50, 30);
+        
+        // Current position text
+        TextView currentPositionText = new TextView(this);
+        currentPositionText.setText("Selected frame: " + formatTime(selectedFrameTime));
+        currentPositionText.setTextSize(16);
+        currentPositionText.setPadding(0, 0, 0, 20);
+        layout.addView(currentPositionText);
+        
+        // SeekBar for frame selection
+        SeekBar dialogSeekBar = new SeekBar(this);
+        dialogSeekBar.setMax(100);
+        int progress = (int) (selectedFrameTime * 100 / videoDuration);
+        dialogSeekBar.setProgress(progress);
+        dialogSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    selectedFrameTime = (long) (progress * videoDuration / 100.0);
+                    currentPositionText.setText("Selected frame: " + formatTime(selectedFrameTime));
+                }
+            }
+            
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                updatePreviewFrame();
+                updateFramePositionText();
+            }
+        });
+        layout.addView(dialogSeekBar);
+        
+        builder.setView(layout);
+        builder.setPositiveButton("OK", null);
+        builder.show();
+    }
+    
+    private void updatePreviewFrame() {
+        if (selectedVideoUri != null && videoDuration > 0) {
+            try {
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                retriever.setDataSource(this, selectedVideoUri);
+                
+                Bitmap frame = retriever.getFrameAtTime(selectedFrameTime * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                if (frame != null) {
+                    ivPreview.setImageBitmap(frame);
+                }
+                
+                retriever.release();
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating preview frame", e);
+            }
+        }
+    }
+    
+    private void updateFramePositionText() {
+        if (tvFramePosition != null && videoDuration > 0) {
+            String text = formatTime(selectedFrameTime) + " / " + formatTime(videoDuration);
+            tvFramePosition.setText(text);
+        }
+    }
+    
+    private String formatTime(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        long minutes = seconds / 60;
+        seconds = seconds % 60;
+        return String.format("%02d:%02d", minutes, seconds);
     }
     
     @Override
