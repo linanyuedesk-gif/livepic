@@ -13,8 +13,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="false"
         android:theme="@style/Theme.AppCompat.NoActionBar">
+        <!-- Multi-page Activities -->
         <activity
-            android:name=".MainActivity"
+            android:name=".activities.HomeActivity"
             android:exported="true"
             android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|layoutDirection">
@@ -23,6 +24,31 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <activity
+            android:name=".activities.IntervalSelectionActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|layoutDirection" />
+        
+        <activity
+            android:name=".activities.PreviewActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|layoutDirection" />
+        
+        <activity
+            android:name=".activities.ExportActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|layoutDirection" />
+        
+        <!-- Legacy MainActivity (can be removed later) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:screenOrientation="fullSensor"
+            android:configChanges="orientation|screenSize|layoutDirection" />
         
         <activity
             android:name=".modules.ui.IntervalSelectorActivity"
