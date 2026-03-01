@@ -20,6 +20,18 @@ container via a native library (libheif) called from JNI.  The
 result is a fully‑compliant Live Photo file carrying Apple MotionPhoto
 XMP metadata.
 
+**Pre-build step:** the `libheif` directory must exist before
+running Gradle.  Clone it manually or initialise submodules:
+
+```bash
+git submodule update --init --recursive
+# or
+git clone https://github.com/strukturag/libheif.git app/src/main/cpp/libheif
+```
+
+CMakeLists.txt will warn if the path is missing, but the build will
+fail without the library.
+
 > Legacy activities (single‑page `MainActivity` and `modules.ui
 > IntervalSelectorActivity`) have been removed during refactor.
 
