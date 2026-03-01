@@ -1,47 +1,44 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+﻿# VLive (com.cl.vlive)
 
-# VToLive – Video to Live Photo Converter
+Android 项目：将视频片段导出为 Live Photo 资产对（`JPG + MOV`）。
 
-Android application that allows users to select a video clip and
-export a segment as an Apple‑style **Live Photo** (JPEG with motion
-metadata).  The new multi‑page workflow is:
+## 已实现功能
 
-1. **Home** – pick a video or view stats on recent exports.
-2. **Interval selection** – choose 1.5‑3 s segment with a timeline view.
-3. **Preview** – scrub the segment and optionally select a custom
-   key frame for the still image.
-4. **Export** – generate the Live Photo, save to gallery, and share it.
+- 选择本地视频文件（系统文件选择器）
+- 预览视频并通过双滑块选择片段
+- 自动限制片段时长在 `1.5s ~ 3.0s`
+- 导出静态图（JPG）+ 动态视频（MOV）
+- 为静态图写入 `ContentIdentifier` 相关 EXIF/XMP 标记
+- 导出后写入系统相册并支持一键分享
 
-Under the hood the app extracts key frames and motion frames using
-`MediaMetadataRetriever` and encodes them into a proper HEIF/HEIC
-container via a native library (libheif) called from JNI.  The
-result is a fully‑compliant Live Photo file carrying Apple MotionPhoto
-XMP metadata.
+## 包名
 
-**Pre-build step:** the `libheif` directory must exist before
-running Gradle.  Clone it manually or initialise submodules:
+- `applicationId`: `com.cl.vlive`
 
-```bash
-git submodule update --init --recursive
-# or
-git clone https://github.com/strukturag/libheif.git app/src/main/cpp/libheif
-```
+## 目录
 
-CMakeLists.txt will warn if the path is missing, but the build will
-fail without the library.
+- 图片导出到：`Pictures/VLive`
+- 视频导出到：`Movies/VLive`
 
-> Legacy activities (single‑page `MainActivity` and `modules.ui
-> IntervalSelectorActivity`) have been removed during refactor.
+文件名统一形如：
 
-## Building the Android project
+- `IMG_20260302_120301.JPG`
+- `IMG_20260302_120301.MOV`
 
-Use Android Studio or Gradle as usual:
+## 构建
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-Make sure to grant storage permissions on recent Android versions
-and run the app on a device/emulator with video files available.
+## iPhone / 照片 / 微信朋友圈使用建议
+
+1. 将同名的 `JPG + MOV` 同时传到 iPhone（AirDrop、微信文件传输助手、iCloud Drive 均可）。
+2. 确保两个文件基础名一致（如 `IMG_xxx`），再导入 iPhone「照片」。
+3. 在「照片」中若识别为 Live Photo，可直接在微信朋友圈按“实况”发布。
+
+## 说明
+
+- Android 侧已完成片段裁剪与成对资产导出。
+- 不同 iOS 版本/导入路径对 Live Photo 识别策略存在差异，建议优先使用 AirDrop 或 iCloud Drive 导入同名文件对进行验证。
+
