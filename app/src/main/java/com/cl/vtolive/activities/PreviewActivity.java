@@ -1,5 +1,7 @@
 package com.cl.vtolive.activities;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
@@ -11,22 +13,24 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.content.Intent;  // added for returning results
-import android.app.Activity;    // added for Activity.RESULT_OK
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.cl.vtolive.R;
 import com.cl.vtolive.modules.video.VideoProcessor;
+import com.cl.vtolive.utils.FlowExtras;
+import com.cl.vtolive.utils.TimeFormatUtils;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
- * Third page: Preview selected interval with playback controls
+ * Preview selected interval and choose key frame. Third page of the flow.
  */
 public class PreviewActivity extends AppCompatActivity {
-    private static final String TAG = "PreviewActivity";
-    
+
+    private static final String TAG = "Preview";
+
     private ImageView ivPreview;
     private SeekBar seekBarPreview;
     private TextView tvCurrentTime;
@@ -34,29 +38,31 @@ public class PreviewActivity extends AppCompatActivity {
     private Button btnPlayPause;
     private Button btnBack;
     private Button btnUseThisFrame;
-    
+
     private Uri videoUri;
     private long startTime;
     private long endTime;
     private VideoProcessor videoProcessor;
-    
-    private boolean isPlaying = false;
-    private long currentTime = 0;
+    private long currentTime;
+
+    private boolean isPlaying;
     private Handler handler = new Handler(Looper.getMainLooper());
     private Runnable updateRunnable;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_preview);
-        
-        initViews();
-        initData();
+        bindViews();
+        readExtras();
+        currentTime = startTime;
         setupListeners();
-        loadInitialFrame();
+        tvTotalTime.setText(TimeFormatUtils.formatTime(endTime - startTime));
+        loadFrameAt(currentTime);
+        updateDisplay();
     }
-    
-    private void initViews() {
+
+    private void bindViews() {
         ivPreview = findViewById(R.id.ivPreview);
         seekBarPreview = findViewById(R.id.seekBarPreview);
         tvCurrentTime = findViewById(R.id.tvCurrentTime);
@@ -65,149 +71,104 @@ public class PreviewActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.btnBack);
         btnUseThisFrame = findViewById(R.id.btnUseThisFrame);
     }
-    
-    private void initData() {
-        videoUri = getIntent().getParcelableExtra("VIDEO_URI");
-        startTime = getIntent().getLongExtra("START_TIME", 0);
-        endTime = getIntent().getLongExtra("END_TIME", 0);
+
+    private void readExtras() {
+        videoUri = FlowExtras.getVideoUri(getIntent());
+        startTime = FlowExtras.getStartTime(getIntent(), 0);
+        endTime = FlowExtras.getEndTime(getIntent(), 0);
         videoProcessor = new VideoProcessor(this);
-        
-        currentTime = startTime;
-        updateSeekBar();
     }
-    
+
     private void setupListeners() {
         seekBarPreview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
-                    currentTime = startTime + (progress * (endTime - startTime) / 100);
+                    currentTime = startTime + (long) progress * (endTime - startTime) / 100;
                     updateDisplay();
                 }
             }
-            
+
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                if (isPlaying) {
-                    pausePlayback();
-                }
+                if (isPlaying) pausePlayback();
             }
-            
+
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {}
         });
-        
         btnPlayPause.setOnClickListener(v -> togglePlayback());
         btnBack.setOnClickListener(v -> finish());
-        btnUseThisFrame.setOnClickListener(v -> useCurrentFrameAsKeyPhoto());
+        btnUseThisFrame.setOnClickListener(v -> useCurrentFrameAsKey());
     }
-    
-    private void loadInitialFrame() {
-        loadFrameAtTime(currentTime);
-        tvTotalTime.setText(formatTime(endTime - startTime));
-        updateDisplay();
-    }
-    
-    private void loadFrameAtTime(long timestamp) {
+
+    private void loadFrameAt(long timestamp) {
         if (videoUri == null) return;
         new Thread(() -> {
             try {
-                java.util.List<VideoProcessor.FrameInfo> frames = videoProcessor
-                    .extractFramesAtTimestamps(videoUri, Arrays.asList(timestamp));
+                List<VideoProcessor.FrameInfo> frames = videoProcessor.extractFramesAtTimestamps(videoUri, Arrays.asList(timestamp));
                 if (frames == null || frames.isEmpty()) return;
-                VideoProcessor.FrameInfo frameInfo = frames.get(0);
+                VideoProcessor.FrameInfo fi = frames.get(0);
                 runOnUiThread(() -> {
-                    if (frameInfo != null && frameInfo.bitmap != null && !frameInfo.bitmap.isRecycled()) {
-                        ivPreview.setImageBitmap(frameInfo.bitmap);
+                    if (fi != null && fi.bitmap != null && !fi.bitmap.isRecycled()) {
+                        ivPreview.setImageBitmap(fi.bitmap);
                     }
-                    if (frameInfo != null) frameInfo.recycle();
+                    if (fi != null) fi.recycle();
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading frame", e);
             }
         }).start();
     }
-    
+
     private void togglePlayback() {
-        if (isPlaying) {
-            pausePlayback();
-        } else {
-            startPlayback();
-        }
+        if (isPlaying) pausePlayback(); else startPlayback();
     }
-    
+
     private void startPlayback() {
         isPlaying = true;
         btnPlayPause.setText("⏸️");
-        
         updateRunnable = new Runnable() {
             @Override
             public void run() {
-                if (isPlaying) {
-                    currentTime += 100; // Advance 100ms
-                    if (currentTime >= endTime) {
-                        currentTime = startTime; // Loop back to start
-                    }
-                    
-                    updateDisplay();
-                    loadFrameAtTime(currentTime);
-                    handler.postDelayed(this, 100);
-                }
+                if (!isPlaying) return;
+                currentTime += 100;
+                if (currentTime >= endTime) currentTime = startTime;
+                updateDisplay();
+                loadFrameAt(currentTime);
+                handler.postDelayed(this, 100);
             }
         };
-        
         handler.post(updateRunnable);
     }
-    
+
     private void pausePlayback() {
         isPlaying = false;
         btnPlayPause.setText("▶️");
-        
-        if (updateRunnable != null) {
-            handler.removeCallbacks(updateRunnable);
-        }
+        if (updateRunnable != null) handler.removeCallbacks(updateRunnable);
     }
-    
+
     private void updateDisplay() {
-        updateSeekBar();
-        tvCurrentTime.setText(formatTime(currentTime - startTime));
-    }
-    
-    private void updateSeekBar() {
-        int progress = (int) ((currentTime - startTime) * 100 / (endTime - startTime));
+        int progress = (endTime > startTime) ? (int) ((currentTime - startTime) * 100 / (endTime - startTime)) : 0;
         seekBarPreview.setProgress(progress);
+        tvCurrentTime.setText(TimeFormatUtils.formatTime(currentTime - startTime));
     }
-    
-    private void useCurrentFrameAsKeyPhoto() {
-        // Return the current time as the key photo timestamp
-        Intent result = new Intent();
-        result.putExtra("KEY_FRAME_TIME", currentTime);
-        setResult(Activity.RESULT_OK, result);
-        Toast.makeText(this, "Using frame at " + formatTime(currentTime - startTime) + 
-                      " as key photo", Toast.LENGTH_SHORT).show();
+
+    private void useCurrentFrameAsKey() {
+        setResult(Activity.RESULT_OK, FlowExtras.resultWithKeyFrameTime(currentTime));
+        Toast.makeText(this, "Key frame: " + TimeFormatUtils.formatTime(currentTime - startTime), Toast.LENGTH_SHORT).show();
         finish();
     }
-    
-    private String formatTime(long milliseconds) {
-        long seconds = milliseconds / 1000;
-        long minutes = seconds / 60;
-        seconds = seconds % 60;
-        return String.format("%02d:%02d", minutes, seconds);
-    }
-    
+
     @Override
     protected void onPause() {
         super.onPause();
-        if (isPlaying) {
-            pausePlayback();
-        }
+        if (isPlaying) pausePlayback();
     }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (isPlaying) {
-            pausePlayback();
-        }
+        if (isPlaying) pausePlayback();
     }
 }

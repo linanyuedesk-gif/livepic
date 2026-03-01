@@ -15,22 +15,26 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.cl.vtolive.R;
 import com.cl.vtolive.modules.core.LivePhotoEncoder;
 import com.cl.vtolive.modules.export.ExportManager;
+import com.cl.vtolive.utils.FileUtils;
+import com.cl.vtolive.utils.FlowExtras;
+import com.cl.vtolive.utils.TimeFormatUtils;
 
-import java.io.File;
+import java.util.ArrayList;
 
 /**
- * Fourth page: Export and save the Live Photo
+ * Export and share Live Photo. Fourth page of the flow.
  */
 public class ExportActivity extends AppCompatActivity {
-    private static final String TAG = "ExportActivity";
-    
+
+    private static final String TAG = "Export";
+
     private ImageView ivKeyPhoto;
     private TextView tvExportInfo;
     private TextView tvStatus;
     private Button btnExport;
     private Button btnShare;
     private Button btnBackToHome;
-    
+
     private Uri videoUri;
     private long startTime;
     private long endTime;
@@ -38,19 +42,21 @@ public class ExportActivity extends AppCompatActivity {
     private LivePhotoEncoder livePhotoEncoder;
     private ExportManager exportManager;
     private String exportedFilePath;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_export);
-        
-        initViews();
-        initData();
+        bindViews();
+        readExtras();
+        exportManager = new ExportManager(this);
+        livePhotoEncoder = new LivePhotoEncoder(this);
+        btnShare.setEnabled(false);
         setupListeners();
         showExportPreview();
     }
-    
-    private void initViews() {
+
+    private void bindViews() {
         ivKeyPhoto = findViewById(R.id.ivKeyPhoto);
         tvExportInfo = findViewById(R.id.tvExportInfo);
         tvStatus = findViewById(R.id.tvStatus);
@@ -58,26 +64,20 @@ public class ExportActivity extends AppCompatActivity {
         btnShare = findViewById(R.id.btnShare);
         btnBackToHome = findViewById(R.id.btnBackToHome);
     }
-    
-    private void initData() {
-        videoUri = getIntent().getParcelableExtra("VIDEO_URI");
-        startTime = getIntent().getLongExtra("START_TIME", 0);
-        endTime = getIntent().getLongExtra("END_TIME", 0);
-        keyFrameTime = getIntent().getLongExtra("KEY_FRAME_TIME", -1);
-        
-        livePhotoEncoder = new LivePhotoEncoder(this);
-        exportManager = new ExportManager(this);
-        
-        // Disable share button until export is complete
-        btnShare.setEnabled(false);
+
+    private void readExtras() {
+        videoUri = FlowExtras.getVideoUri(getIntent());
+        startTime = FlowExtras.getStartTime(getIntent(), 0);
+        endTime = FlowExtras.getEndTime(getIntent(), 0);
+        keyFrameTime = FlowExtras.getKeyFrameTime(getIntent(), -1);
     }
-    
+
     private void setupListeners() {
         btnExport.setOnClickListener(v -> startExport());
         btnShare.setOnClickListener(v -> shareLivePhoto());
         btnBackToHome.setOnClickListener(v -> backToHome());
     }
-    
+
     private void showExportPreview() {
         if (videoUri == null) {
             tvExportInfo.setText("No video selected");
@@ -86,31 +86,24 @@ public class ExportActivity extends AppCompatActivity {
             return;
         }
         String info = String.format("Video: %s\nInterval: %s - %s\nDuration: %s",
-            getFileName(videoUri),
-            formatTime(startTime),
-            formatTime(endTime),
-            formatDuration(endTime - startTime));
+                FileUtils.getFileName(this, videoUri),
+                TimeFormatUtils.formatTime(startTime),
+                TimeFormatUtils.formatTime(endTime),
+                TimeFormatUtils.formatDuration(endTime - startTime));
         if (keyFrameTime >= startTime && keyFrameTime <= endTime) {
-            info += "\nKey frame: " + formatTime(keyFrameTime - startTime);
+            info += "\nKey frame: " + TimeFormatUtils.formatTime(keyFrameTime - startTime);
         }
-        
         tvExportInfo.setText(info);
         tvStatus.setText("Ready to create Live Photo");
-        
         loadKeyPhotoPreview();
     }
-    
+
     private void loadKeyPhotoPreview() {
         if (videoUri == null) return;
+        long previewTime = (keyFrameTime >= startTime && keyFrameTime <= endTime) ? keyFrameTime : (startTime + endTime) / 2;
         new Thread(() -> {
             try {
-                // Determine which frame to use for preview
-                long previewTime = (keyFrameTime >= startTime && keyFrameTime <= endTime)
-                        ? keyFrameTime
-                        : (startTime + endTime) / 2;
-                android.graphics.Bitmap keyPhoto = livePhotoEncoder
-                    .extractKeyPhoto(videoUri, startTime, endTime, previewTime);
-                
+                android.graphics.Bitmap keyPhoto = livePhotoEncoder.extractKeyPhoto(videoUri, startTime, endTime, previewTime);
                 runOnUiThread(() -> {
                     if (keyPhoto != null && !keyPhoto.isRecycled()) {
                         ivKeyPhoto.setImageBitmap(keyPhoto);
@@ -121,72 +114,64 @@ public class ExportActivity extends AppCompatActivity {
             }
         }).start();
     }
-    
+
     private void startExport() {
-        long videoApproxDuration = endTime - startTime + 1000; // rough
-        if (!livePhotoEncoder.validateParameters(startTime, endTime, videoApproxDuration)) {
+        long approxDuration = endTime - startTime + 1000;
+        if (!livePhotoEncoder.validateParameters(startTime, endTime, approxDuration)) {
             Toast.makeText(this, "Invalid time interval", Toast.LENGTH_SHORT).show();
             return;
         }
-        
-        ProgressDialog progressDialog = new ProgressDialog(this);
-        progressDialog.setMessage("Creating your Live Photo...");
-        progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        progressDialog.setCancelable(false);
-        progressDialog.show();
-        
+        ProgressDialog progress = new ProgressDialog(this);
+        progress.setMessage("Creating your Live Photo...");
+        progress.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        progress.setCancelable(false);
+        progress.show();
         btnExport.setEnabled(false);
         tvStatus.setText("Exporting...");
-        
-        exportManager.exportToGalleryAsync(videoUri, startTime, endTime, keyFrameTime,
-            new ExportManager.ExportCallback() {
-                @Override
-                public void onProgress(int percentage, String message) {
-                    runOnUiThread(() -> {
-                        progressDialog.setProgress(percentage);
-                        progressDialog.setMessage(message);
-                        tvStatus.setText(message);
-                    });
-                }
-                
-                @Override
-                public void onSuccess(String filePath, Uri mediaStoreUri) {
-                    runOnUiThread(() -> {
-                        progressDialog.dismiss();
-                        exportedFilePath = filePath;
-                        tvStatus.setText("✅ Live Photo created successfully!");
-                        btnExport.setEnabled(false);
-                        btnShare.setEnabled(true);
-                        Toast.makeText(ExportActivity.this, 
-                            "Live Photo saved to gallery!", Toast.LENGTH_LONG).show();
-                    });
-                }
-                
-                @Override
-                public void onError(String error) {
-                    runOnUiThread(() -> {
-                        progressDialog.dismiss();
-                        tvStatus.setText("❌ Export failed: " + error);
-                        btnExport.setEnabled(true);
-                        Toast.makeText(ExportActivity.this, 
-                            "Export failed: " + error, Toast.LENGTH_LONG).show();
-                    });
-                }
-            });
+
+        exportManager.exportToGalleryAsync(videoUri, startTime, endTime, keyFrameTime, new ExportManager.ExportCallback() {
+            @Override
+            public void onProgress(int percentage, String message) {
+                runOnUiThread(() -> {
+                    progress.setProgress(percentage);
+                    progress.setMessage(message);
+                    tvStatus.setText(message);
+                });
+            }
+
+            @Override
+            public void onSuccess(String filePath, Uri mediaStoreUri) {
+                runOnUiThread(() -> {
+                    progress.dismiss();
+                    exportedFilePath = filePath;
+                    tvStatus.setText("✅ Live Photo created successfully!");
+                    btnExport.setEnabled(false);
+                    btnShare.setEnabled(true);
+                    Toast.makeText(ExportActivity.this, "Live Photo saved to gallery!", Toast.LENGTH_LONG).show();
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    progress.dismiss();
+                    tvStatus.setText("❌ Export failed: " + error);
+                    btnExport.setEnabled(true);
+                    Toast.makeText(ExportActivity.this, "Export failed: " + error, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
-    
+
     private void shareLivePhoto() {
         if (exportedFilePath == null) {
             Toast.makeText(this, "No exported file to share", Toast.LENGTH_SHORT).show();
             return;
         }
-        
         exportManager.shareLivePhoto(exportedFilePath, new ExportManager.ShareCallback() {
             @Override
-            public void onShareUrisReady(java.util.ArrayList<Uri> uris) {
-                Intent shareIntent = uris.size() > 1
-                        ? new Intent(Intent.ACTION_SEND_MULTIPLE)
-                        : new Intent(Intent.ACTION_SEND);
+            public void onShareUrisReady(ArrayList<Uri> uris) {
+                Intent shareIntent = uris.size() > 1 ? new Intent(Intent.ACTION_SEND_MULTIPLE) : new Intent(Intent.ACTION_SEND);
                 shareIntent.setType(uris.size() > 1 ? "*/*" : "image/heic");
                 shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 if (uris.size() > 1) {
@@ -196,46 +181,18 @@ public class ExportActivity extends AppCompatActivity {
                 }
                 startActivity(Intent.createChooser(shareIntent, "Share Live Photo (HEIC + MOV)"));
             }
-            
+
             @Override
             public void onError(String error) {
-                Toast.makeText(ExportActivity.this, 
-                    "Share failed: " + error, Toast.LENGTH_SHORT).show();
+                Toast.makeText(ExportActivity.this, "Share failed: " + error, Toast.LENGTH_SHORT).show();
             }
         });
     }
-    
+
     private void backToHome() {
-        Intent intent = new Intent(this, HomeActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
+        Intent i = new Intent(this, HomeActivity.class);
+        i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(i);
         finish();
-    }
-    
-    private String getFileName(Uri uri) {
-        String path = uri.getLastPathSegment();
-        if (path != null && path.contains("/")) {
-            String[] parts = path.split("/");
-            return parts[parts.length - 1];
-        }
-        return path != null ? path : "Unknown file";
-    }
-    
-    private String formatTime(long milliseconds) {
-        long seconds = milliseconds / 1000;
-        long minutes = seconds / 60;
-        seconds = seconds % 60;
-        return String.format("%02d:%02d", minutes, seconds);
-    }
-    
-    private String formatDuration(long milliseconds) {
-        long seconds = milliseconds / 1000;
-        if (seconds < 60) {
-            return seconds + "s";
-        } else {
-            long minutes = seconds / 60;
-            seconds = seconds % 60;
-            return String.format("%d:%02d", minutes, seconds);
-        }
     }
 }
