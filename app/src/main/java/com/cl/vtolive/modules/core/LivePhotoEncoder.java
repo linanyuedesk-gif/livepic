@@ -37,7 +37,7 @@ public class LivePhotoEncoder {
     public LivePhotoEncoder(Context context) {
         this.context = context;
     }
-    
+
     /**
      * Creates a Live Photo from video interval
      * @param videoUri Source video URI

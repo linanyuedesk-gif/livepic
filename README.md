@@ -21,19 +21,11 @@ Under the hood the app extracts key frames and motion frames using
 Both files share the same UUID for pairing on iPhone, Photos app, WeChat
 Moments, and AirDrop.
 
-**Pre-build step:** the `libheif` source tree must exist under
-`app/src/main/cpp/libheif` before running Gradle.  Clone it
-manually or initialise submodules:
+**Pre-build:** libheif is required for HEIC export and is included as a git submodule. Before building, run:
 
 ```bash
 git submodule update --init --recursive
-# or
-git clone https://github.com/strukturag/libheif.git app/src/main/cpp/libheif
 ```
-
-The native `CMakeLists.txt` will fail fast with a clear error
-message if `libheif` is missing or incomplete, since the app
-cannot encode Live Photos without it.
 
 > Legacy activities (single‑page `MainActivity` and `modules.ui
 > IntervalSelectorActivity`) have been removed during refactor.
