@@ -20,5 +20,8 @@ else()
 endif()
 
 add_library(native-lib SHARED heif_encoder.cpp)
-target_include_directories(native-lib PRIVATE "${LIBHEIF_DIR}/include")
+# Use libheif public headers under libheif/api/libheif so we can include <libheif/heif.h>
+target_include_directories(native-lib PRIVATE
+    "${LIBHEIF_DIR}/libheif/api"
+)
 target_link_libraries(native-lib PRIVATE heif)

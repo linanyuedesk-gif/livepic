@@ -1,7 +1,8 @@
 #include <jni.h>
 #include <string>
 #include <cstring>
-#include "heif/heif.h"
+// libheif C API
+#include <libheif/heif.h>
 
 extern "C" {
 
