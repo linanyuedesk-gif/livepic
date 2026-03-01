@@ -6,12 +6,14 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -63,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnSelectVideo;
     private Button btnConvert;
     private Button btnFrameSelector;
-    private SeekBar seekBarFrame;
+    private android.view.View intervalInfoCard;
     private TextView tvFramePosition;
     private FrameLayout rootLayout;
     
@@ -106,9 +108,9 @@ public class MainActivity extends AppCompatActivity {
         checkPermissions();
         setupClickListeners();
         
-        // Initially disable frame selection
+        // Initially hide interval info
+        intervalInfoCard.setVisibility(View.GONE);
         btnFrameSelector.setEnabled(false);
-        seekBarFrame.setVisibility(View.GONE);
         
         hideSystemUI();
     }
@@ -121,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
         btnSelectVideo = findViewById(R.id.btnSelectVideo);
         btnConvert = findViewById(R.id.btnConvert);
         btnFrameSelector = findViewById(R.id.btnFrameSelector);
-        seekBarFrame = findViewById(R.id.seekBarFrame);
+        intervalInfoCard = findViewById(R.id.intervalInfoCard);
         tvFramePosition = findViewById(R.id.tvFramePosition);
         rootLayout = findViewById(R.id.rootLayout);
     }
@@ -152,22 +154,6 @@ public class MainActivity extends AppCompatActivity {
         btnSelectVideo.setOnClickListener(v -> selectVideo());
         btnConvert.setOnClickListener(v -> convertToLivePhoto());
         btnFrameSelector.setOnClickListener(v -> selectInterval());
-        
-        seekBarFrame.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && videoDuration > 0) {
-                    selectedStartTime = (long) (progress * videoDuration / 100.0);
-                    updateFramePositionText();
-                }
-            }
-            
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-            
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
         
         rootLayout.setOnClickListener(v -> {
             if (selectedVideoUri == null) {
@@ -275,9 +261,8 @@ public class MainActivity extends AppCompatActivity {
                 
                 // Enable frame selection controls
                 btnFrameSelector.setEnabled(true);
-                seekBarFrame.setVisibility(View.VISIBLE);
-                int progress = (int) (selectedStartTime * 100 / videoDuration);
-                seekBarFrame.setProgress(progress);
+                intervalInfoCard.setVisibility(View.VISIBLE);
+                updateFramePositionText();
                 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading video preview", e);
@@ -312,9 +297,9 @@ public class MainActivity extends AppCompatActivity {
                 videoDuration = 0;
                 selectedStartTime = 2000;
                 selectedEndTime = 5000;
-                seekBarFrame.setVisibility(View.GONE);
+                intervalInfoCard.setVisibility(View.GONE);
                 btnFrameSelector.setEnabled(false);
-                tvFramePosition.setText("00:00 / 00:00");
+                tvFramePosition.setText("00:00 - 00:00 (0s)");
             }
         } else if (requestCode == INTERVAL_SELECTOR_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
             selectedStartTime = data.getLongExtra(IntervalSelectorActivity.RESULT_START_TIME, 2000);
@@ -390,6 +375,7 @@ public class MainActivity extends AppCompatActivity {
             String text = formatTime(selectedStartTime) + " - " + formatTime(selectedEndTime) + 
                          " (" + formatDuration(selectedEndTime - selectedStartTime) + ")";
             tvFramePosition.setText(text);
+            intervalInfoCard.setVisibility(View.VISIBLE);
         }
     }
     

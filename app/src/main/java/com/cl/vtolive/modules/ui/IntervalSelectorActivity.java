@@ -120,9 +120,9 @@ public class IntervalSelectorActivity extends AppCompatActivity {
         btnConfirm.setEnabled(isValid);
         
         if (!isValid) {
-            tvIntervalInfo.setTextColor(getResources().getColor(R.color.warning_color));
+            tvIntervalInfo.setTextColor(getResources().getColor(android.R.color.holo_orange_light));
         } else {
-            tvIntervalInfo.setTextColor(getResources().getColor(R.color.normal_text_color));
+            tvIntervalInfo.setTextColor(getResources().getColor(android.R.color.white));
         }
     }
     
