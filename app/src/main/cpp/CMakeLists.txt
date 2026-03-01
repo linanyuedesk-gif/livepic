@@ -20,8 +20,15 @@ else()
 endif()
 
 add_library(native-lib SHARED heif_encoder.cpp)
-# Use libheif public headers under libheif/api/libheif so we can include <libheif/heif.h>
+
+# libheif public headers:
+#   - Source tree: libheif/libheif/api/libheif/*.h
+#   - Generated headers (e.g. heif_version.h) in the build tree:
+set(LIBHEIF_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/libheif_build")
+
 target_include_directories(native-lib PRIVATE
     "${LIBHEIF_DIR}/libheif/api"
+    "${LIBHEIF_BUILD_DIR}/libheif/api"
 )
+
 target_link_libraries(native-lib PRIVATE heif)
